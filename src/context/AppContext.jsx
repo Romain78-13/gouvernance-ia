@@ -42,6 +42,19 @@ export function AppProvider({ children }) {
     (data) => {
       const now = new Date().toISOString();
       let created;
+      // Auto-assign the matching Champion for the ticket's métier (so a ticket
+      // créé par un employé remonte bien au Champion concerné, ex. RH -> Julie).
+      const championForMetier = users.find(
+        (u) => u.role === ROLES.CHAMPION && u.metier === data.metier
+      );
+      const isChampion = currentUser?.role === ROLES.CHAMPION;
+      const assignedChampionId = isChampion
+        ? currentUser.id
+        : championForMetier?.id || null;
+      const assignedChampionName = isChampion
+        ? currentUser.name
+        : championForMetier?.name || data.champion || "";
+
       setTickets((prev) => {
         const reference = nextReference(prev);
         created = {
@@ -51,8 +64,6 @@ export function AppProvider({ children }) {
           createdAt: now,
           updatedAt: now,
           creatorUserId: currentUser?.id || null,
-          championUserId:
-            currentUser?.role === ROLES.CHAMPION ? currentUser.id : null,
           championGrid: {
             completed: false,
             savedAt: null,
@@ -77,12 +88,23 @@ export function AppProvider({ children }) {
             },
           ],
           ...data,
+          // Assignation du Champion (prioritaire sur la saisie du formulaire)
+          championUserId: assignedChampionId,
+          champion: assignedChampionName,
         };
+        // Trace l'affectation au Champion dans l'historique
+        if (!isChampion && assignedChampionName) {
+          created.history.push({
+            ts: now,
+            actor: "Système",
+            action: `Ticket affecté au Champion ${assignedChampionName} (${data.metier})`,
+          });
+        }
         return [created, ...prev];
       });
       return created;
     },
-    [currentUser]
+    [currentUser, users]
   );
 
   const updateTicket = useCallback((id, patch) => {

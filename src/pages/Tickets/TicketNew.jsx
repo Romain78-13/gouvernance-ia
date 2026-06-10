@@ -69,18 +69,30 @@ function RadioRow({ options, value, onChange }) {
 export default function TicketNew() {
   const { id } = useParams();
   const isEdit = Boolean(id);
-  const { currentUser, createTicket, updateTicket, getTicket, pushToast } =
+  const { currentUser, users, createTicket, updateTicket, getTicket, pushToast } =
     useApp();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const prefillRole =
-    currentUser?.role === ROLES.CHAMPION ||
-    currentUser?.role === ROLES.EMPLOYE;
+  const isChampion = currentUser?.role === ROLES.CHAMPION;
+  const isEmployee = currentUser?.role === ROLES.EMPLOYE;
   const [form, setForm] = useState(() => ({
     ...empty,
-    champion: prefillRole ? currentUser.name : "",
-    metier: prefillRole ? currentUser.metier || "Finance" : "Finance",
+    champion: isChampion ? currentUser.name : "",
+    metier:
+      isChampion || isEmployee ? currentUser.metier || "Finance" : "Finance",
   }));
+
+  // Champion automatiquement responsable selon le métier choisi
+  const championForMetier = users.find(
+    (u) => u.role === ROLES.CHAMPION && u.metier === form.metier
+  );
+
+  // Pour l'employé, le Champion responsable est dérivé du métier.
+  useEffect(() => {
+    if (isEmployee && !isEdit) {
+      setForm((f) => ({ ...f, champion: championForMetier?.name || "" }));
+    }
+  }, [isEmployee, isEdit, championForMetier?.name]);
 
   useEffect(() => {
     if (isEdit) {
@@ -167,12 +179,25 @@ export default function TicketNew() {
               </select>
             </Field>
             <Field label="Champion responsable">
-              <input
-                className="input"
-                value={form.champion}
-                onChange={(e) => set("champion", e.target.value)}
-                placeholder="Nom du Champion"
-              />
+              {isEmployee ? (
+                <>
+                  <input
+                    className="input bg-panel cursor-not-allowed"
+                    value={championForMetier?.name || "Aucun Champion pour ce métier"}
+                    readOnly
+                  />
+                  <p className="text-[12px] text-muted mt-1.5">
+                    Affecté automatiquement selon le métier sélectionné.
+                  </p>
+                </>
+              ) : (
+                <input
+                  className="input"
+                  value={form.champion}
+                  onChange={(e) => set("champion", e.target.value)}
+                  placeholder="Nom du Champion"
+                />
+              )}
             </Field>
             <Field label="Sponsor métier">
               <input
